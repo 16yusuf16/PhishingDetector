@@ -21,7 +21,7 @@ builder.Services.AddDbContext<PhishingDbContext>(options =>
 #pragma warning disable EXTEXP0001
 builder.Services.AddHttpClient<IOllamaService, OllamaService>(client =>
 {
-    client.BaseAddress = new Uri(builder.Configuration["Ollama:BaseUrl"] ?? "http://localhost:11500");
+    client.BaseAddress = new Uri(builder.Configuration["Ollama:BaseUrl"] ?? "http://localhost:11434");
     client.Timeout = Timeout.InfiniteTimeSpan;
 })
 .RemoveAllResilienceHandlers()
