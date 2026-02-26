@@ -1,0 +1,16 @@
+<Router AppAssembly="typeof(App).Assembly">
+    <Found Context="routeData">
+        <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+        <FocusOnNavigate RouteData="routeData" Selector="h1" />
+    </Found>
+    <NotFound>
+        <PageTitle>Sayfa Bulunamadı</PageTitle>
+        <LayoutView Layout="typeof(Layout.MainLayout)">
+            <div class="not-found">
+                <i class="fas fa-exclamation-triangle"></i>
+                <h2>404 - Sayfa Bulunamadı</h2>
+                <a href="/">Ana Sayfaya Dön</a>
+            </div>
+        </LayoutView>
+    </NotFound>
+</Router>

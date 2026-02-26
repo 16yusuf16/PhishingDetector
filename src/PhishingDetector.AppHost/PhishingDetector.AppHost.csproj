@@ -1,0 +1,23 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.1.0">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UserSecretsId>563fde6a-78fa-44a3-91b8-ef8c2e1d01cd</UserSecretsId>
+  </PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Aspire.Hosting.AppHost" Version="13.1.0" />
+		<PackageReference Include="Aspire.Hosting.Qdrant" Version="13.1.0" />
+		<PackageReference Include="Aspire.Hosting.PostgreSQL" Version="13.1.0" />
+		<PackageReference Include="CommunityToolkit.Aspire.Hosting.Ollama" Version="13.1.1" />
+	</ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PhishingDetector.API\PhishingDetector.API.csproj" />
+    <ProjectReference Include="..\PhishingDetector.ServiceDefaults\PhishingDetector.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\PhishingDetector.Web\PhishingDetector.Web.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,99 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    container_name: phishing-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USERNAME:-postgresUser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgresPW}
+      POSTGRES_DB: phishingdetectordb
+    ports:
+      - "5432:5432"
+    volumes:
+      - phishing-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USERNAME:-postgresUser} -d phishingdetectordb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - phishing-network
+
+  # PgAdmin - PostgreSQL Management
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: phishing-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - phishing-network
+
+  # Phishing Detector API
+  phishing-detector-api:
+    build:
+      context: .
+      dockerfile: src/PhishingDetector.API/Dockerfile
+    container_name: phishing-detector-api
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:5000
+      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=phishingdetectordb;Username=${POSTGRES_USERNAME:-postgresUser};Password=${POSTGRES_PASSWORD:-postgresPW}
+      OLLAMA_BASE_URL: http://ollama:11434
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - phishing-network
+    restart: unless-stopped
+
+  # Phishing Detector Web (Blazor)
+  phishing-detector-web:
+    build:
+      context: .
+      dockerfile: src/PhishingDetector.Web/Dockerfile
+    container_name: phishing-detector-web
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:5001
+      ApiBaseUrl: http://phishing-detector-api:5000
+    ports:
+      - "5001:5001"
+    depends_on:
+      - phishing-detector-api
+    networks:
+      - phishing-network
+    restart: unless-stopped
+
+  # Ollama (Optional - ML Model Server)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: phishing-ollama
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - phishing-network
+    restart: unless-stopped
+
+volumes:
+  phishing-postgres-data:
+    driver: local
+  ollama-data:
+    driver: local
+
+networks:
+  phishing-network:
+    driver: bridge

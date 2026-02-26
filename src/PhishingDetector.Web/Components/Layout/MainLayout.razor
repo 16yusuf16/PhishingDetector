@@ -1,0 +1,37 @@
+@inherits LayoutComponentBase
+
+<div class="app-shell">
+    <aside class="sidebar">
+        <div class="sidebar-logo">
+            <div class="logo-icon">
+                <i class="fas fa-shield-halved"></i>
+            </div>
+            <div class="logo-text">
+                <span class="logo-title">Phishing Detector</span>
+                <span class="logo-sub">AI Phishing Detector</span>
+            </div>
+        </div>
+
+        <nav class="sidebar-nav">
+            <NavLink class="nav-item" href="/" Match="NavLinkMatch.All">
+                <i class="fas fa-gauge-high"></i>
+                <span>Dashboard</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/analyze">
+                <i class="fas fa-magnifying-glass"></i>
+                <span>E-posta Analiz</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/history">
+                <i class="fas fa-clock-rotate-left"></i>
+                <span>Geçmiş</span>
+            </NavLink>
+        </nav>
+
+    </aside>
+
+    <main class="main-content">
+        <div class="page-wrapper">
+            @Body
+        </div>
+    </main>
+</div>

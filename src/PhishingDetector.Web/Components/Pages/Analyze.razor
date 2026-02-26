@@ -1,0 +1,330 @@
+@page "/analyze"
+@using PhishingDetector.Core.DTOs
+@using PhishingDetector.Core.Models
+@using PhishingDetector.Web.Services
+@inject PhishingApiClient Api
+@rendermode InteractiveServer
+
+<PageTitle>E-posta Analiz - Phishing Detector</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">E-posta Analiz</h1>
+        <p class="page-subtitle">E-posta içeriğini yapay zeka ile phishing riskine karşı analiz edin</p>
+    </div>
+</div>
+
+<div class="analyze-layout">
+    <!-- Input Form -->
+    <div class="card analyze-form-card">
+        <div class="card-header">
+            <h3><i class="fas fa-envelope-open-text"></i> E-posta Bilgileri</h3>
+        </div>
+        <div class="card-body">
+            <div class="form-group">
+                <label class="form-label">
+                    <i class="fas fa-at"></i> Gönderen
+                </label>
+                <input type="text" class="form-input" @bind="_request.Sender"
+                       placeholder="ornek@domain.com" />
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">
+                    <i class="fas fa-heading"></i> Konu <span class="required">*</span>
+                </label>
+                <input type="text" class="form-input" @bind="_request.Subject"
+                       placeholder="E-posta konusu..." />
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">
+                    <i class="fas fa-link"></i> URL'ler
+                    <span class="form-hint">(Her satıra bir URL)</span>
+                </label>
+                <textarea class="form-textarea" @bind="_request.Urls" rows="4"
+                          placeholder="https://example.com&#10;https://suspicious-site.xyz"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">
+                    <i class="fas fa-code"></i> E-posta Başlıkları
+                    <span class="form-hint">(Opsiyonel - raw headers)</span>
+                </label>
+                <textarea class="form-textarea" @bind="_request.Headers" rows="4"
+                          placeholder="Received: from mail.example.com&#10;X-Originating-IP: x.x.x.x;DKIM-Signature: ..."></textarea>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">
+                    <i class="fas fa-align-left"></i> E-posta İçeriği <span class="required">*</span>
+                </label>
+                <textarea class="form-textarea" @bind="_request.Content" rows="8"
+                          placeholder="E-posta içeriğini buraya yapıştırın..."></textarea>
+            </div>
+
+            @if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <div class="alert alert-danger">
+                    <i class="fas fa-circle-exclamation"></i>
+                    @_errorMessage
+                </div>
+            }
+
+            <div class="form-actions">
+                <button class="btn btn-primary btn-lg" @onclick="AnalyzeAsync" disabled="@_analyzing">
+                    @if (_analyzing)
+                    {
+                        <span class="spinner-sm"></span>
+                        <span>Analiz Ediliyor... (@_elapsedSec s)</span>
+                    }
+                    else
+                    {
+                        <i class="fas fa-magnifying-glass"></i>
+                        <span>Analiz Et</span>
+                    }
+                </button>
+                <button class="btn btn-ghost" @onclick="LoadSampleData">
+                    <i class="fas fa-flask"></i> Örnek Veri
+                </button>
+                <button class="btn btn-ghost" @onclick="ClearForm">
+                    <i class="fas fa-trash"></i> Temizle
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Panel -->
+    @if (_result is not null)
+    {
+        <div class="results-panel">
+            <!-- Overall Risk -->
+            <div class="card result-hero result-@_result.OverallRisk.ToLower()">
+                <div class="result-hero-content">
+                    <div class="result-hero-icon">
+                        @if (_result.OverallRisk == "Dangerous")
+                        { <i class="fas fa-skull-crossbones"></i> }
+                        else if (_result.OverallRisk == "Spam")
+                        { <i class="fas fa-triangle-exclamation"></i> }
+                        else
+                        { <i class="fas fa-circle-check"></i> }
+                    </div>
+                    <div class="result-hero-text">
+                        <div class="result-risk-label">@GetRiskLabel(_result.OverallRisk)</div>
+                        <div class="result-score-big">@_result.OverallRiskScore <span>/100</span></div>
+                        <div class="result-time"><i class="fas fa-clock"></i> @_result.ProcessingTimeMs ms</div>
+                    </div>
+                </div>
+
+                <!-- Score breakdown -->
+                <div class="score-breakdown">
+                    <div class="score-item">
+                        <div class="score-item-label"><i class="fas fa-link"></i> URL Risk</div>
+                        <div class="score-progress">
+                            <div class="score-progress-bar score-fill-@GetScoreClass(_result.UrlRiskScore)" style="width:@_result.UrlRiskScore%"></div>
+                        </div>
+                        <div class="score-item-value">@_result.UrlRiskScore</div>
+                    </div>
+                    <div class="score-item">
+                        <div class="score-item-label"><i class="fas fa-code"></i> Header Risk</div>
+                        <div class="score-progress">
+                            <div class="score-progress-bar" style="width:@_result.HeaderRiskScore%"></div>
+                        </div>
+                        <div class="score-item-value">@_result.HeaderRiskScore</div>
+                    </div>
+                    <div class="score-item">
+                        <div class="score-item-label"><i class="fas fa-align-left"></i> İçerik Risk</div>
+                        <div class="score-progress">
+                            <div class="score-progress-bar" style="width:@_result.ContentRiskScore%"></div>
+                        </div>
+                        <div class="score-item-value">@_result.ContentRiskScore</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Summary -->
+            <div class="card">
+                <div class="card-header">
+                    <h3><i class="fas fa-clipboard-list"></i> Analiz Özeti</h3>
+                </div>
+                <div class="card-body">
+                    <p class="summary-text">@_result.Summary</p>
+                </div>
+            </div>
+
+            <!-- Indicators -->
+            <div class="card">
+                <div class="card-header">
+                    <h3><i class="fas fa-flag"></i> Risk Göstergeleri</h3>
+                </div>
+                <div class="card-body">
+                    <div class="indicators-list">
+                        @foreach (var indicator in _result.Indicators)
+                        {
+                            <div class="indicator-item">@indicator</div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- Detailed Analysis Tabs -->
+            <div class="card">
+                <div class="card-header">
+                    <h3><i class="fas fa-microscope"></i> Detaylı Analiz</h3>
+                    <div class="tab-group">
+                        <button class="tab @(_activeTab == "url" ? "tab-active" : "")" @onclick='() => _activeTab = "url"'>
+                            <i class="fas fa-link"></i> URL
+                        </button>
+                        <button class="tab @(_activeTab == "header" ? "tab-active" : "")" @onclick='() => _activeTab = "header"'>
+                            <i class="fas fa-code"></i> Header
+                        </button>
+                        <button class="tab @(_activeTab == "content" ? "tab-active" : "")" @onclick='() => _activeTab = "content"'>
+                            <i class="fas fa-align-left"></i> İçerik
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    @if (_activeTab == "url")
+                    {
+                        <div class="analysis-score-header">
+                            <span class="score-badge score-badge-@GetScoreClass(_result.UrlRiskScore)">@_result.UrlRiskScore/100</span>
+                        </div>
+                        <p class="analysis-text">@_result.UrlAnalysis</p>
+                    }
+                    else if (_activeTab == "header")
+                    {
+                        <div class="analysis-score-header">
+                            <span class="score-badge score-badge-@GetScoreClass(_result.HeaderRiskScore)">@_result.HeaderRiskScore/100</span>
+                        </div>
+                        <p class="analysis-text">@_result.HeaderAnalysis</p>
+                    }
+                    else
+                    {
+                        <div class="analysis-score-header">
+                            <span class="score-badge score-badge-@GetScoreClass(_result.ContentRiskScore)">@_result.ContentRiskScore/100</span>
+                        </div>
+                        <p class="analysis-text">@_result.ContentAnalysis</p>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+    else if (_analyzing)
+    {
+        <div class="card analyzing-card">
+            <div class="analyzing-animation">
+                <div class="pulse-ring"></div>
+                <div class="pulse-ring pulse-ring-2"></div>
+                <i class="fas fa-shield-halved analyzing-icon"></i>
+            </div>
+            <h3>Analiz Ediliyor</h3>
+            <p>Yapay zeka e-postanızı inceliyor...</p>
+            <div class="analysis-steps">
+                <div class="step @(_elapsedSec >= 0 ? "step-active" : "")">
+                    <i class="fas fa-link"></i> URL'ler analiz ediliyor
+                </div>
+                <div class="step @(_elapsedSec >= 5 ? "step-active" : "")">
+                    <i class="fas fa-code"></i> Header'lar inceleniyor
+                </div>
+                <div class="step @(_elapsedSec >= 10 ? "step-active" : "")">
+                    <i class="fas fa-align-left"></i> İçerik değerlendiriliyor
+                </div>
+                <div class="step @(_elapsedSec >= 15 ? "step-active" : "")">
+                    <i class="fas fa-clipboard-list"></i> Rapor hazırlanıyor
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private AnalyzeEmailRequest _request = new();
+    private AnalyzeEmailResponse? _result;
+    private bool _analyzing;
+    private string _errorMessage = string.Empty;
+    private string _activeTab = "url";
+    private int _elapsedSec;
+    private System.Timers.Timer? _timer;
+
+    private async Task AnalyzeAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_request.Subject) && string.IsNullOrWhiteSpace(_request.Content))
+        {
+            _errorMessage = "Lütfen en az konu veya içerik alanını doldurun.";
+            return;
+        }
+
+        _errorMessage = string.Empty;
+        _analyzing = true;
+        _result = null;
+        _elapsedSec = 0;
+        _activeTab = "url";
+
+        _timer = new System.Timers.Timer(1000);
+        _timer.Elapsed += async (_, _) =>
+        {
+            _elapsedSec++;
+            await InvokeAsync(StateHasChanged);
+        };
+        _timer.Start();
+
+        try
+        {
+            _result = await Api.AnalyzeAsync(_request);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Hata: {ex.Message}";
+        }
+        finally
+        {
+            _timer.Stop();
+            _timer.Dispose();
+            _analyzing = false;
+        }
+    }
+
+    private void ClearForm()
+    {
+        _request = new();
+        _result = null;
+        _errorMessage = string.Empty;
+    }
+
+    private void LoadSampleData()
+    {
+        _request = new AnalyzeEmailRequest
+        {
+            Sender = "security-noreply@payp4l-secure.com",
+            Subject = "⚠️ ACİL: Hesabınız askıya alındı - Hemen doğrulayın!",
+            Urls = "https://xxx-secure.com/verify-account\nhttps://xx/xxxx\nhttp://x.x.x.x/login",
+            Headers = "Received: from payp4l-secure.com (unknown [x.x.x.x])\nX-Originating-IP: x.x.x.x\nDKIM-Signature: FAILED\nSPF: FAIL",
+            Content = @"Sayın Müşterimiz,
+
+PayPal güvenlik ekibimiz, hesabınızda şüpheli aktivite tespit etmiştir. Hesabınız geçici olarak askıya alınmıştır.
+
+HEMEN TIKLAYIN ve hesabınızı 24 saat içinde doğrulamazsanız hesabınız kalıcı olarak kapatılacaktır!
+
+Kişisel bilgilerinizi doğrulamak için lütfen aşağıdaki bağlantıya tıklayın:
+https://xx-secure.com/verify-account
+
+Kullanıcı adı, şifre ve kredi kartı bilgilerinizi girmeniz gerekmektedir.
+
+PayPal Güvenlik Ekibi"
+        };
+    }
+
+    private static string GetRiskLabel(string risk) => risk switch
+    {
+        "Dangerous" => "🔴 TEHLİKELİ - Phishing!",
+        "Spam" => "⚠️ SPAM - Şüpheli",
+        _ => "✅ NORMAL - Güvenli"
+    };
+
+    private static string GetScoreClass(int score) => score switch
+    {
+        >= 70 => "danger",
+        >= 35 => "spam",
+        _ => "normal"
+    };
+}

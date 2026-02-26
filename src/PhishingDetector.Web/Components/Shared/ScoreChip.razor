@@ -1,0 +1,14 @@
+@namespace PhishingDetector.Web.Components.Shared
+
+<span class="score-chip score-chip-@GetClass(Score)">@Score</span>
+
+@code {
+    [Parameter] public int Score { get; set; }
+
+    private static string GetClass(int score) => score switch
+    {
+        >= 70 => "danger",
+        >= 35 => "spam",
+        _ => "normal"
+    };
+}

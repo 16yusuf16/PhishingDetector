@@ -1,0 +1,132 @@
+@page "/history"
+@using PhishingDetector.Core.Models
+@using PhishingDetector.Web.Services
+@inject PhishingApiClient Api
+@rendermode InteractiveServer
+
+<PageTitle>Geçmiş - Phishing Detector</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Analiz Geçmişi</h1>
+        <p class="page-subtitle">Daha önce gerçekleştirilen tüm analizler</p>
+    </div>
+    <div class="header-actions">
+        <select class="form-select" @bind="_filterRisk" @bind:after="ApplyFilter">
+            <option value="">Tüm Riskler</option>
+            <option value="Normal">✅ Normal</option>
+            <option value="Spam">⚠️ Spam</option>
+            <option value="Dangerous">🔴 Tehlikeli</option>
+        </select>
+        <button class="btn btn-outline" @onclick="LoadData">
+            <i class="fas fa-rotate-right"></i>
+        </button>
+    </div>
+</div>
+
+@if (_loading)
+{
+    <div class="loading-container">
+        <div class="spinner"></div>
+        <p>Yükleniyor...</p>
+    </div>
+}
+else if (_filtered is null || !_filtered.Any())
+{
+    <div class="card">
+        <div class="empty-state">
+            <i class="fas fa-inbox"></i>
+            <p>Kayıtlı analiz bulunamadı</p>
+            <a href="/analyze" class="btn btn-primary">Analiz Yap</a>
+        </div>
+    </div>
+}
+else
+{
+    <div class="card">
+        <div class="card-body p-0">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Risk</th>
+                        <th>Konu</th>
+                        <th>Gönderen</th>
+                        <th>URL</th>
+                        <th>Header</th>
+                        <th>İçerik</th>
+                        <th>Toplam Skor</th>
+                        <th>Tarih</th>
+                        <th>Süre</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in _filtered)
+                    {
+                        <tr class="@(item.OverallRisk == RiskLevel.Dangerous ? "row-danger" : item.OverallRisk == RiskLevel.Spam ? "row-spam" : "")">
+                            <td><span class="risk-badge risk-@item.OverallRisk.ToString().ToLower()">@GetRiskLabel(item.OverallRisk)</span></td>
+                            <td class="text-ellipsis" style="max-width:180px" title="@item.Subject">@(item.Subject.Length > 40 ? item.Subject[..40] + "…" : item.Subject)</td>
+                            <td class="text-muted text-ellipsis" style="max-width:150px">@item.Sender</td>
+                            <td><ScoreChip Score="@item.UrlRiskScore" /></td>
+                            <td><ScoreChip Score="@item.HeaderRiskScore" /></td>
+                            <td><ScoreChip Score="@item.ContentRiskScore" /></td>
+                            <td>
+                                <div class="score-inline">
+                                    <div class="score-bar-mini">
+                                        <div class="score-fill score-@GetScoreClass(item.OverallRiskScore)" style="width:@item.OverallRiskScore%"></div>
+                                    </div>
+                                    <strong>@item.OverallRiskScore</strong>
+                                </div>
+                            </td>
+                            <td class="text-muted nowrap">@item.AnalyzedAt.ToLocalTime().ToString("dd.MM.yy HH:mm")</td>
+                            <td class="text-muted nowrap">@item.ProcessingTimeMs ms</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="card-footer">
+            <span class="text-muted">@_filtered.Count kayıt gösteriliyor</span>
+        </div>
+    </div>
+}
+
+@code {
+    private List<EmailAnalysis>? _all;
+    private List<EmailAnalysis>? _filtered;
+    private bool _loading = true;
+    private string _filterRisk = "";
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        StateHasChanged();
+        _all = await Api.GetHistoryAsync(100);
+        ApplyFilter();
+        _loading = false;
+    }
+
+    private void ApplyFilter()
+    {
+        if (_all is null) return;
+        _filtered = string.IsNullOrEmpty(_filterRisk)
+            ? _all
+            : _all.Where(a => a.OverallRisk.ToString() == _filterRisk).ToList();
+    }
+
+    private static string GetRiskLabel(RiskLevel risk) => risk switch
+    {
+        RiskLevel.Normal => "✅ Normal",
+        RiskLevel.Spam => "⚠️ Spam",
+        RiskLevel.Dangerous => "🔴 Tehlikeli",
+        _ => "?"
+    };
+
+    private static string GetScoreClass(int score) => score switch
+    {
+        >= 70 => "danger",
+        >= 35 => "spam",
+        _ => "normal"
+    };
+}

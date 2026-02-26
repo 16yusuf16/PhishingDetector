@@ -1,0 +1,274 @@
+@page "/"
+@using PhishingDetector.Core.Models
+@using PhishingDetector.Web.Services
+@inject PhishingApiClient Api
+@rendermode InteractiveServer
+
+<PageTitle>Dashboard - Phishing Detector</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Dashboard</h1>
+        <p class="page-subtitle">Phishing analiz istatistikleri ve özet bilgiler</p>
+    </div>
+    <button class="btn btn-outline" @onclick="LoadData">
+        <i class="fas fa-rotate-right"></i> Yenile
+    </button>
+</div>
+
+@if (_loading)
+{
+    <div class="loading-container">
+        <div class="spinner"></div>
+        <p>Veriler yükleniyor...</p>
+    </div>
+}
+else if (_stats is null)
+{
+    <div class="alert alert-danger">
+        <i class="fas fa-circle-exclamation"></i>
+        API'ye bağlanılamadı. Lütfen backend servisinin çalıştığından emin olun.
+    </div>
+}
+else
+{
+    <div class="stats-grid">
+        <div class="stat-card stat-total">
+            <div class="stat-icon"><i class="fas fa-envelope"></i></div>
+            <div class="stat-info">
+                <div class="stat-value">@_stats.TotalAnalyzed</div>
+                <div class="stat-label">Toplam Analiz</div>
+            </div>
+        </div>
+        <div class="stat-card stat-normal">
+            <div class="stat-icon"><i class="fas fa-circle-check"></i></div>
+            <div class="stat-info">
+                <div class="stat-value">@_stats.NormalCount</div>
+                <div class="stat-label">Normal</div>
+                <div class="stat-percent">@GetPercent(_stats.NormalCount)%</div>
+            </div>
+        </div>
+        <div class="stat-card stat-spam">
+            <div class="stat-icon"><i class="fas fa-triangle-exclamation"></i></div>
+            <div class="stat-info">
+                <div class="stat-value">@_stats.SpamCount</div>
+                <div class="stat-label">Spam</div>
+                <div class="stat-percent">@GetPercent(_stats.SpamCount)%</div>
+            </div>
+        </div>
+        <div class="stat-card stat-danger">
+            <div class="stat-icon"><i class="fas fa-skull-crossbones"></i></div>
+            <div class="stat-info">
+                <div class="stat-value">@_stats.DangerousCount</div>
+                <div class="stat-label">Tehlikeli</div>
+                <div class="stat-percent">@GetPercent(_stats.DangerousCount)%</div>
+            </div>
+        </div>
+        <div class="stat-card stat-score">
+            <div class="stat-icon"><i class="fas fa-chart-line"></i></div>
+            <div class="stat-info">
+                <div class="stat-value">@_stats.AverageRiskScore<span class="stat-unit">/100</span></div>
+                <div class="stat-label">Ort. Risk Skoru</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="charts-row">
+        <div class="card chart-card">
+            <div class="card-header">
+                <h3><i class="fas fa-chart-pie"></i> Risk Dağılımı</h3>
+            </div>
+            <div class="card-body">
+                @if (_stats.TotalAnalyzed > 0)
+                {
+                    <div class="donut-chart-container">
+                        <svg viewBox="0 0 200 200" class="donut-svg">
+                            @{
+                                var normalPct = _stats.TotalAnalyzed > 0 ? (double)_stats.NormalCount / _stats.TotalAnalyzed : 0;
+                                var spamPct = _stats.TotalAnalyzed > 0 ? (double)_stats.SpamCount / _stats.TotalAnalyzed : 0;
+                                var dangerPct = _stats.TotalAnalyzed > 0 ? (double)_stats.DangerousCount / _stats.TotalAnalyzed : 0;
+                                var r = 80.0;
+                                var cx = 100.0;
+                                var cy = 100.0;
+                                var circumference = 2 * Math.PI * r;
+                                var normalDash = normalPct * circumference;
+                                var spamDash = spamPct * circumference;
+                                var dangerDash = dangerPct * circumference;
+                                var dangerOffset = 0.0;
+                                var normalOffset = dangerDash;
+                                var spamOffset = dangerDash + normalDash;
+                            }
+                            <circle cx="@cx" cy="@cy" r="@r" fill="none" stroke="#ef4444" stroke-width="30"
+                                    stroke-dasharray="@dangerDash @(circumference - dangerDash)"
+                                    stroke-dashoffset="@(circumference * 0.25)"
+                                    transform="rotate(-90 @cx @cy)" />
+                            <circle cx="@cx" cy="@cy" r="@r" fill="none" stroke="#22c55e" stroke-width="30"
+                                    stroke-dasharray="@normalDash @(circumference - normalDash)"
+                                    stroke-dashoffset="@(circumference * 0.25 - dangerDash)"
+                                    transform="rotate(-90 @cx @cy)" />
+                            <circle cx="@cx" cy="@cy" r="@r" fill="none" stroke="#f59e0b" stroke-width="30"
+                                    stroke-dasharray="@spamDash @(circumference - spamDash)"
+                                    stroke-dashoffset="@(circumference * 0.25 - dangerDash - normalDash)"
+                                    transform="rotate(-90 @cx @cy)" />
+                            <text x="@cx" y="@(cy - 8)" text-anchor="middle" class="donut-center-val">@_stats.TotalAnalyzed</text>
+                            <text x="@cx" y="@(cy + 14)" text-anchor="middle" class="donut-center-label">Toplam</text>
+                        </svg>
+                        <div class="donut-legend">
+                            <div class="legend-item"><span class="legend-dot dot-danger"></span> Tehlikeli (@_stats.DangerousCount)</div>
+                            <div class="legend-item"><span class="legend-dot dot-normal"></span> Normal (@_stats.NormalCount)</div>
+                            <div class="legend-item"><span class="legend-dot dot-spam"></span> Spam (@_stats.SpamCount)</div>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="empty-chart">
+                        <i class="fas fa-chart-pie"></i>
+                        <p>Henüz analiz yapılmadı</p>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="card chart-card chart-wide">
+            <div class="card-header">
+                <h3><i class="fas fa-chart-bar"></i> Son 7 Gün</h3>
+            </div>
+            <div class="card-body">
+                @if (_stats.Last7Days.Any())
+                {
+                    <div class="bar-chart">
+                        @{
+                            var maxVal = _stats.Last7Days.Max(d => d.Normal + d.Spam + d.Dangerous);
+                            if (maxVal == 0) maxVal = 1;
+                        }
+                        @foreach (var day in _stats.Last7Days)
+                        {
+                            var total = day.Normal + day.Spam + day.Dangerous;
+                            var normalH = (double)day.Normal / maxVal * 140;
+                            var spamH = (double)day.Spam / maxVal * 140;
+                            var dangerH = (double)day.Dangerous / maxVal * 140;
+                            <div class="bar-group">
+                                <div class="bar-stack">
+                                    @if (day.Dangerous > 0)
+                                    {
+                                        <div class="bar bar-danger" style="height:@(dangerH)px" title="Tehlikeli: @day.Dangerous"></div>
+                                    }
+                                    @if (day.Spam > 0)
+                                    {
+                                        <div class="bar bar-spam" style="height:@(spamH)px" title="Spam: @day.Spam"></div>
+                                    }
+                                    @if (day.Normal > 0)
+                                    {
+                                        <div class="bar bar-normal" style="height:@(normalH)px" title="Normal: @day.Normal"></div>
+                                    }
+                                    @if (total == 0)
+                                    {
+                                        <div class="bar bar-empty" style="height:4px"></div>
+                                    }
+                                </div>
+                                <div class="bar-label">@day.Date.ToString("dd/MM")</div>
+                                <div class="bar-total">@total</div>
+                            </div>
+                        }
+                    </div>
+                    <div class="bar-chart-legend">
+                        <span><span class="legend-dot dot-danger"></span>Tehlikeli</span>
+                        <span><span class="legend-dot dot-spam"></span>Spam</span>
+                        <span><span class="legend-dot dot-normal"></span>Normal</span>
+                    </div>
+                }
+                else
+                {
+                    <div class="empty-chart">
+                        <i class="fas fa-chart-bar"></i>
+                        <p>Son 7 günde analiz yapılmadı</p>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3><i class="fas fa-list"></i> Son Analizler</h3>
+            <a href="/history" class="btn btn-sm btn-outline">Tümünü Gör</a>
+        </div>
+        <div class="card-body p-0">
+            @if (_stats.RecentAnalyses.Any())
+            {
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Risk</th>
+                            <th>Konu</th>
+                            <th>Gönderen</th>
+                            <th>Skor</th>
+                            <th>Tarih</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in _stats.RecentAnalyses)
+                        {
+                            <tr>
+                                <td><span class="risk-badge risk-@item.Risk.ToString().ToLower()">@GetRiskLabel(item.Risk)</span></td>
+                                <td class="text-ellipsis" style="max-width:200px" title="@item.Subject">@item.Subject</td>
+                                <td class="text-muted text-ellipsis" style="max-width:160px">@item.Sender</td>
+                                <td>
+                                    <div class="score-bar-mini">
+                                        <div class="score-fill score-@GetScoreClass(item.Score)" style="width:@item.Score%"></div>
+                                    </div>
+                                    <span class="score-num">@item.Score</span>
+                                </td>
+                                <td class="text-muted">@item.AnalyzedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <div class="empty-state">
+                    <i class="fas fa-inbox"></i>
+                    <p>Henüz analiz yapılmadı</p>
+                    <a href="/analyze" class="btn btn-primary">İlk Analizi Yap</a>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private DashboardStats? _stats;
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        StateHasChanged();
+        _stats = await Api.GetDashboardAsync();
+        _loading = false;
+    }
+
+    private string GetPercent(int count)
+        => _stats?.TotalAnalyzed > 0
+            ? Math.Round((double)count / _stats.TotalAnalyzed * 100, 1).ToString("F1")
+            : "0";
+
+    private static string GetRiskLabel(RiskLevel risk) => risk switch
+    {
+        RiskLevel.Normal => "✅ Normal",
+        RiskLevel.Spam => "⚠️ Spam",
+        RiskLevel.Dangerous => "🔴 Tehlikeli",
+        _ => "?"
+    };
+
+    private static string GetScoreClass(int score) => score switch
+    {
+        >= 70 => "danger",
+        >= 35 => "spam",
+        _ => "normal"
+    };
+}
